@@ -562,6 +562,125 @@ export type Database = {
           },
         ]
       }
+      ingestion_record_matches: {
+        Row: {
+          confidence: number
+          created_at: string
+          decision_status: string
+          entity_type: string
+          entity_uuid: string
+          id: string
+          ingestion_record_id: string
+          match_method: string
+          rationale: string | null
+          reviewed_at: string | null
+        }
+        Insert: {
+          confidence: number
+          created_at?: string
+          decision_status?: string
+          entity_type: string
+          entity_uuid: string
+          id?: string
+          ingestion_record_id: string
+          match_method: string
+          rationale?: string | null
+          reviewed_at?: string | null
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          decision_status?: string
+          entity_type?: string
+          entity_uuid?: string
+          id?: string
+          ingestion_record_id?: string
+          match_method?: string
+          rationale?: string | null
+          reviewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingestion_record_matches_ingestion_record_id_fkey"
+            columns: ["ingestion_record_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ingestion_records: {
+        Row: {
+          canonical_entity_type: string | null
+          canonical_entity_uuid: string | null
+          data_source_id: string
+          entity_type: string
+          error_details: Json
+          external_id: string | null
+          id: string
+          import_batch_id: string
+          normalized_payload: Json | null
+          payload_hash: string
+          processed_at: string | null
+          processing_status: string
+          raw_payload: Json
+          received_at: string
+          record_key: string
+          source_record_url: string | null
+        }
+        Insert: {
+          canonical_entity_type?: string | null
+          canonical_entity_uuid?: string | null
+          data_source_id: string
+          entity_type: string
+          error_details?: Json
+          external_id?: string | null
+          id?: string
+          import_batch_id: string
+          normalized_payload?: Json | null
+          payload_hash: string
+          processed_at?: string | null
+          processing_status?: string
+          raw_payload: Json
+          received_at?: string
+          record_key: string
+          source_record_url?: string | null
+        }
+        Update: {
+          canonical_entity_type?: string | null
+          canonical_entity_uuid?: string | null
+          data_source_id?: string
+          entity_type?: string
+          error_details?: Json
+          external_id?: string | null
+          id?: string
+          import_batch_id?: string
+          normalized_payload?: Json | null
+          payload_hash?: string
+          processed_at?: string | null
+          processing_status?: string
+          raw_payload?: Json
+          received_at?: string
+          record_key?: string
+          source_record_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingestion_records_data_source_id_fkey"
+            columns: ["data_source_id"]
+            isOneToOne: false
+            referencedRelation: "data_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ingestion_records_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           city: string | null
@@ -1103,6 +1222,60 @@ export type Database = {
             columns: ["discipline_id"]
             isOneToOne: false
             referencedRelation: "disciplines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      source_stat_mappings: {
+        Row: {
+          created_at: string
+          data_source_id: string
+          external_stat_code: string
+          external_stat_name: string | null
+          id: string
+          mapping_status: string
+          notes: string | null
+          stat_definition_id: string
+          transformation_config: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_source_id: string
+          external_stat_code: string
+          external_stat_name?: string | null
+          id?: string
+          mapping_status?: string
+          notes?: string | null
+          stat_definition_id: string
+          transformation_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_source_id?: string
+          external_stat_code?: string
+          external_stat_name?: string | null
+          id?: string
+          mapping_status?: string
+          notes?: string | null
+          stat_definition_id?: string
+          transformation_config?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_stat_mappings_data_source_id_fkey"
+            columns: ["data_source_id"]
+            isOneToOne: false
+            referencedRelation: "data_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_stat_mappings_stat_definition_id_fkey"
+            columns: ["stat_definition_id"]
+            isOneToOne: false
+            referencedRelation: "stat_definitions"
             referencedColumns: ["id"]
           },
         ]
