@@ -35,4 +35,5 @@ See `docs/architecture/ROADMAP.md` and `docs/architecture/DATA_MODEL.md`.
 
 - `20261102221552_initial_canonical_schema.sql` extends the original empty schema without dropping legacy tables or changing their numeric identifiers.
 - `20261102221621_public_catalog_policies_and_fk_indexes.sql` establishes public read-only catalog access and keeps import diagnostics and external identity crosswalks service-role only.
-- The two migrations above have been applied to the linked Supabase project. Keep local migration history synchronized with the remote migration history.
+- `20261102221745_legacy_relationships_and_import_indexes.sql` tightens one legacy player foreign key, removes an unsafe random event default, and completes import-batch indexes.
+- All three migrations above have been applied to the linked Supabase project. Keep local migration history synchronized with the remote migration history.
