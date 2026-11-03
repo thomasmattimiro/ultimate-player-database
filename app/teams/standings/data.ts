@@ -123,7 +123,18 @@ export async function getTeamSeasonResults(
   }
 
   const resultRows = (results ?? []) as ResultRow[];
-  const teamUuids = [...new Set(resultRows.map((result) => result.team_uuid))];
+  const gamesMissingResults = gameRows.filter(
+    (game) => (resultsByGame.get(game.uuid)?.length ?? 0) !== 2,
+  ).length;
+  const completeGameUuids = new Set(
+    gameRows
+      .filter((game) => (resultsByGame.get(game.uuid)?.length ?? 0) === 2)
+      .map((game) => game.uuid),
+  );
+  const completeResultRows = resultRows.filter((result) =>
+    completeGameUuids.has(result.game_uuid),
+  );
+  const teamUuids = [...new Set(completeResultRows.map((result) => result.team_uuid))];
   const { data: teams, error: teamsError } = teamUuids.length
     ? await supabase
         .from("teams")
@@ -137,7 +148,7 @@ export async function getTeamSeasonResults(
   const gameByUuid = new Map(gameRows.map((game) => [game.uuid, game]));
   const resultsByGame = new Map<string, ResultRow[]>();
 
-  for (const result of resultRows) {
+  for (const result of completeResultRows) {
     const existing = resultsByGame.get(result.game_uuid) ?? [];
     existing.push(result);
     resultsByGame.set(result.game_uuid, existing);
@@ -222,10 +233,6 @@ export async function getTeamSeasonResults(
       b.pointsFor - a.pointsFor ||
       a.teamName.localeCompare(b.teamName),
     );
-
-  const gamesMissingResults = gameRows.filter(
-    (game) => (resultsByGame.get(game.uuid)?.length ?? 0) !== 2,
-  ).length;
 
   return {
     season: {
