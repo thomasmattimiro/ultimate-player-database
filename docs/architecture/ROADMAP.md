@@ -61,6 +61,8 @@
 **Exit:** a source can be re-imported without duplicate staged records or canonical entities, and ambiguous identities require review.
 
 ### Phase 5 — searchable public directories
+- Team season standings with sortable, filterable, paginated results and CSV export. **First slice complete.**
+- Event-by-event team results nested within season standings. **First slice complete.**
 - Player, team, event, season, and tournament directory pages.
 - Profile pages with historical rosters, participation, and source citations.
 - Server-side filtering, sorting, pagination, and global search.
@@ -102,7 +104,7 @@
 4. Seed reference catalogs. **Initial seed complete; stat semantics remain provisional.**
 5. Add secure ingestion staging and identity candidate review schema. **Schema complete; application pipeline remains next.**
 6. Build the first legacy-data adapter and reconcile game/team identities.
-7. Build read-only directory pages backed by verified Supabase records.
+7. Build read-only directory pages backed by verified Supabase records. **Team-season standings and event breakdown are the first implemented directory slice.**
 
 ## Explicitly deferred
 
