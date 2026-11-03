@@ -125,7 +125,7 @@ export async function getTeamSeasonResults(
   const resultRows = (results ?? []) as ResultRow[];
   const resultsByGame = new Map<string, ResultRow[]>();
 
-  for (const result of completeResultRows) {
+  for (const result of resultRows) {
     const existing = resultsByGame.get(result.game_uuid) ?? [];
     existing.push(result);
     resultsByGame.set(result.game_uuid, existing);
@@ -168,7 +168,7 @@ export async function getTeamSeasonResults(
     }
   >();
 
-  for (const result of resultRows) {
+  for (const result of completeResultRows) {
     const team = teamByUuid.get(result.team_uuid);
     if (!team) continue;
 
