@@ -123,6 +123,14 @@ export async function getTeamSeasonResults(
   }
 
   const resultRows = (results ?? []) as ResultRow[];
+  const resultsByGame = new Map<string, ResultRow[]>();
+
+  for (const result of completeResultRows) {
+    const existing = resultsByGame.get(result.game_uuid) ?? [];
+    existing.push(result);
+    resultsByGame.set(result.game_uuid, existing);
+  }
+
   const gamesMissingResults = gameRows.filter(
     (game) => (resultsByGame.get(game.uuid)?.length ?? 0) !== 2,
   ).length;
@@ -146,13 +154,6 @@ export async function getTeamSeasonResults(
 
   const teamByUuid = new Map((teams ?? []).map((team) => [team.uuid, team]));
   const gameByUuid = new Map(gameRows.map((game) => [game.uuid, game]));
-  const resultsByGame = new Map<string, ResultRow[]>();
-
-  for (const result of completeResultRows) {
-    const existing = resultsByGame.get(result.game_uuid) ?? [];
-    existing.push(result);
-    resultsByGame.set(result.game_uuid, existing);
-  }
 
   const aggregates = new Map<
     string,
