@@ -34,7 +34,8 @@ export function EventBreakdown({
     return events.filter((event) =>
       !query ||
       event.eventName.toLowerCase().includes(query) ||
-      event.teams.some((team) => team.teamName.toLowerCase().includes(query)),
+      event.teams.some((team) => team.teamName.toLowerCase().includes(query)) ||
+      event.entries.some((entry) => entry.teamName.toLowerCase().includes(query)),
     );
   }, [events, search]);
 
@@ -88,9 +89,13 @@ export function EventBreakdown({
                       {event.gamesMissingResults} game(s) excluded because they do not have
                       exactly two team-result records.
                     </p>
-                  ) : (
+                  ) : event.gamesPlayed > 0 ? (
                     <p className="event-complete-note">
                       All {event.gamesPlayed} games have complete team results.
+                    </p>
+                  ) : (
+                    <p className="event-complete-note">
+                      No game results have been entered for this event yet. Event entries are shown separately.
                     </p>
                   )}
 
@@ -106,7 +111,7 @@ export function EventBreakdown({
                             <tr>
                               <th scope="col">Seed</th>
                               <th scope="col">Team</th>
-                              <th className="numeric-cell" scope="col">Place</th>
+                              <th className="numeric-cell" scope="col">Final</th>
                               <th scope="col">Status</th>
                               <th scope="col">Division</th>
                             </tr>
