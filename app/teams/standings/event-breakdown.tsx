@@ -74,7 +74,8 @@ export function EventBreakdown({
                   <span>{formatDateRange(event.startDate, event.endDate)}</span>
                 </span>
                 <span className="event-toggle-stats">
-                  <span>{event.teams.length} teams</span>
+                  <span>{event.entries.length} entered</span>
+                  <span>{event.teams.length} with results</span>
                   <span>{completeGames}/{event.gamesPlayed} complete games</span>
                   <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
                 </span>
@@ -92,6 +93,39 @@ export function EventBreakdown({
                       All {event.gamesPlayed} games have complete team results.
                     </p>
                   )}
+
+                  {event.entries.length > 0 ? (
+                    <section className="event-entries-section" aria-label="Event entries">
+                      <div className="event-entries-heading">
+                        <h3>Entered teams</h3>
+                        <span>{event.entries.length} entries</span>
+                      </div>
+                      <div className="table-scroll">
+                        <table className="standings-table event-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">Seed</th>
+                              <th scope="col">Team</th>
+                              <th className="numeric-cell" scope="col">Place</th>
+                              <th scope="col">Status</th>
+                              <th scope="col">Division</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {event.entries.map((entry) => (
+                              <tr key={entry.teamUuid}>
+                                <td className="tabular">{entry.seed ?? "—"}</td>
+                                <td><strong>{entry.teamName}</strong></td>
+                                <td className="numeric-cell tabular">{entry.finalPlacement ?? "—"}</td>
+                                <td>{entry.status ?? "—"}</td>
+                                <td>{entry.divisionName}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  ) : null}
 
                   <div className="table-scroll">
                     <table className="standings-table event-table">
