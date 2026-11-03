@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { TeamSeasonStanding } from "./data";
 
 type SortKey =
@@ -196,9 +195,7 @@ export function StandingsTable({
                     key={column.key}
                   >
                     {column.key === "teamName" ? (
-                      <Link className="team-name-link" href={`/teams/${row.teamUuid}`}>
-                        {row.teamName}
-                      </Link>
+                      <span className="team-name-link">{row.teamName}</span>
                     ) : (
                       cellValue(row, column.key)
                     )}
