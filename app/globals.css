@@ -158,3 +158,26 @@ a { color: inherit; text-decoration: none; }
   .event-breakdown-toolbar input { width: 100%; }
   .event-toggle-stats { justify-content: flex-start; }
 }
+
+.event-entries-section {
+  margin: 0 0 1.5rem;
+}
+
+.event-entries-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.65rem;
+}
+
+.event-entries-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.event-entries-heading span {
+  color: var(--muted, #64748b);
+  font-size: 0.8rem;
+}
