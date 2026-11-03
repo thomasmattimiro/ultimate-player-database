@@ -9,7 +9,7 @@ const sections = [
   {
     title: "Teams",
     description: "Follow team rosters, seasons, results, and competitive strength.",
-    href: "/teams",
+    href: "/teams/standings",
   },
   {
     title: "Events",
@@ -30,7 +30,7 @@ export default function HomePage() {
         <Link className="brand" href="/">UPD<span>.</span></Link>
         <nav aria-label="Main navigation">
           <Link href="/players">Players</Link>
-          <Link href="/teams">Teams</Link>
+          <Link href="/teams/standings">Teams</Link>
           <Link href="/events">Events</Link>
           <Link href="/rankings">Rankings</Link>
           <Link href="/statistics">Statistics</Link>
