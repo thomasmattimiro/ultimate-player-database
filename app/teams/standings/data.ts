@@ -19,6 +19,15 @@ export type TeamSeasonStanding = {
 
 export type EventTeamStanding = Omit<TeamSeasonStanding, "eventsPlayed">;
 
+export type EventEntry = {
+  teamUuid: string;
+  teamName: string;
+  divisionName: string;
+  seed: number | null;
+  finalPlacement: number | null;
+  status: string | null;
+};
+
 export type EventResultsBreakdown = {
   eventUuid: string;
   eventName: string;
@@ -27,6 +36,7 @@ export type EventResultsBreakdown = {
   gamesPlayed: number;
   gamesMissingResults: number;
   teams: EventTeamStanding[];
+  entries: EventEntry[];
 };
 
 export type TeamSeasonResults = {
@@ -143,7 +153,7 @@ export async function getTeamSeasonResults(
 
   const { data: eventDivisions, error: divisionsError } = await supabase
     .from("event_divisions")
-    .select("id, event_id")
+    .select("id, event_id, name")
     .eq("season_uuid", seasonUuid);
 
   if (divisionsError) {
@@ -171,28 +181,68 @@ export async function getTeamSeasonResults(
     };
   }
 
-  const [{ data: games, error: gamesError }, { data: events, error: eventsError }] =
-    await Promise.all([
-      supabase
-        .from("games")
-        .select("uuid, event, date")
-        .in("event_division_id", divisionIds)
-        .order("date", { ascending: true }),
-      supabase
-        .from("events")
-        .select("id, event_name, start_date, end_date")
-        .in("id", eventUuids),
-    ]);
+  const [
+    { data: games, error: gamesError },
+    { data: events, error: eventsError },
+    { data: eventEntries, error: entriesError },
+  ] = await Promise.all([
+    supabase
+      .from("games")
+      .select("uuid, event, date")
+      .in("event_division_id", divisionIds)
+      .order("date", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, event_name, start_date, end_date")
+      .in("id", eventUuids),
+    supabase
+      .from("event_entries")
+      .select("event_division_id, team_uuid, seed, final_placement, status")
+      .in("event_division_id", divisionIds),
+  ]);
 
   if (gamesError) throw new Error(`Unable to load games: ${gamesError.message}`);
   if (eventsError) throw new Error(`Unable to load events: ${eventsError.message}`);
+  if (entriesError) throw new Error(`Unable to load event entries: ${entriesError.message}`);
 
   const gameRows = games ?? [];
   const eventRows = events ?? [];
-  const eventByUuid = new Map(eventRows.map((event) => [event.id, event]));
+  const entryRows = eventEntries ?? [];
   const gameUuids = gameRows.map((game) => game.uuid);
+  const divisionById = new Map(divisionRows.map((division) => [division.id, division]));
+  const entryTeamUuids = [...new Set(entryRows.map((entry) => entry.team_uuid))];
 
   if (gameUuids.length === 0) {
+    const { data: entryTeams, error: entryTeamsError } = entryTeamUuids.length
+      ? await supabase
+          .from("teams")
+          .select("uuid, name, division, competition_gender, verification_status")
+          .in("uuid", entryTeamUuids)
+      : { data: [], error: null };
+
+    if (entryTeamsError) {
+      throw new Error(`Unable to load event-entry teams: ${entryTeamsError.message}`);
+    }
+
+    const entryTeamByUuid = new Map((entryTeams ?? []).map((team) => [team.uuid, team]));
+    const entriesByEvent = new Map<string, EventEntry[]>();
+
+    for (const entry of entryRows) {
+      const division = divisionById.get(entry.event_division_id);
+      const team = entryTeamByUuid.get(entry.team_uuid);
+      if (!division || !team) continue;
+      const eventEntries = entriesByEvent.get(division.event_id) ?? [];
+      eventEntries.push({
+        teamUuid: entry.team_uuid,
+        teamName: team.name ?? "Unnamed team",
+        divisionName: division.name ?? "Unnamed division",
+        seed: entry.seed === null ? null : Number(entry.seed),
+        finalPlacement: entry.final_placement,
+        status: entry.status,
+      });
+      entriesByEvent.set(division.event_id, eventEntries);
+    }
+
     return {
       season: emptySeason,
       standings: [],
@@ -205,6 +255,13 @@ export async function getTeamSeasonResults(
           gamesPlayed: 0,
           gamesMissingResults: 0,
           teams: [],
+          entries: (entriesByEvent.get(event.id) ?? []).sort(
+            (a, b) =>
+              (a.finalPlacement ?? Number.MAX_SAFE_INTEGER) -
+                (b.finalPlacement ?? Number.MAX_SAFE_INTEGER) ||
+              (a.seed ?? Number.MAX_SAFE_INTEGER) - (b.seed ?? Number.MAX_SAFE_INTEGER) ||
+              a.teamName.localeCompare(b.teamName),
+          ),
         }))
         .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? "")),
       gamesPlayed: 0,
@@ -241,7 +298,12 @@ export async function getTeamSeasonResults(
   const completeResultRows = resultRows.filter((result) =>
     completeGameUuids.has(result.game_uuid),
   );
-  const teamUuids = [...new Set(completeResultRows.map((result) => result.team_uuid))];
+  const teamUuids = [
+    ...new Set([
+      ...completeResultRows.map((result) => result.team_uuid),
+      ...entryTeamUuids,
+    ]),
+  ];
   const { data: teams, error: teamsError } = teamUuids.length
     ? await supabase
         .from("teams")
@@ -257,6 +319,23 @@ export async function getTeamSeasonResults(
   const eventAggregates = new Map<string, Map<string, Aggregate>>();
   const eventGameIds = new Map<string, Set<string>>();
   const eventMissingGames = new Map<string, number>();
+  const entriesByEvent = new Map<string, EventEntry[]>();
+
+  for (const entry of entryRows) {
+    const division = divisionById.get(entry.event_division_id);
+    const team = teamByUuid.get(entry.team_uuid);
+    if (!division || !team) continue;
+    const eventEntries = entriesByEvent.get(division.event_id) ?? [];
+    eventEntries.push({
+      teamUuid: entry.team_uuid,
+      teamName: team.name ?? "Unnamed team",
+      divisionName: division.name ?? "Unnamed division",
+      seed: entry.seed === null ? null : Number(entry.seed),
+      finalPlacement: entry.final_placement,
+      status: entry.status,
+    });
+    entriesByEvent.set(division.event_id, eventEntries);
+  }
 
   for (const game of gameRows) {
     if (!game.event) continue;
@@ -331,6 +410,13 @@ export async function getTeamSeasonResults(
         gamesPlayed: eventGameIds.get(event.id)?.size ?? 0,
         gamesMissingResults: eventMissingGames.get(event.id) ?? 0,
         teams: eventTeams,
+        entries: (entriesByEvent.get(event.id) ?? []).sort(
+          (a, b) =>
+            (a.finalPlacement ?? Number.MAX_SAFE_INTEGER) -
+              (b.finalPlacement ?? Number.MAX_SAFE_INTEGER) ||
+            (a.seed ?? Number.MAX_SAFE_INTEGER) - (b.seed ?? Number.MAX_SAFE_INTEGER) ||
+            a.teamName.localeCompare(b.teamName),
+        ),
       };
     })
     .sort((a, b) =>
