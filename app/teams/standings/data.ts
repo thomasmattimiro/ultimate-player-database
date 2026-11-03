@@ -298,7 +298,6 @@ export async function getTeamSeasonResults(
     eventAggregates.set(eventUuid, byTeam);
   }
 
-  const teamRows = [...teamByUuid.entries()];
   const standings = [...seasonAggregates.entries()]
     .flatMap(([teamUuid, aggregate]) => {
       const team = teamByUuid.get(teamUuid);
