@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAvailableSeasons, getTeamSeasonResults } from "./data";
+import { EventBreakdown } from "./event-breakdown";
 import { StandingsTable } from "./standings-table";
 
 export const metadata: Metadata = {
   title: "Team Season Results",
   description:
-    "Historical team standings, wins, losses, and point differentials by season.",
+    "Historical team standings, wins, losses, and point differentials by season and event.",
 };
 
 type PageProps = {
@@ -52,7 +53,7 @@ export default async function TeamSeasonStandingsPage({ searchParams }: PageProp
   const results = await getTeamSeasonResults(selectedSeasonUuid);
   if (!results) notFound();
 
-  const { season, standings, gamesPlayed, gamesMissingResults } = results;
+  const { season, standings, eventBreakdown, gamesPlayed, gamesMissingResults } = results;
   const title = [season.year, season.division].filter(Boolean).join(" ") || "Season";
 
   return (
@@ -119,15 +120,15 @@ export default async function TeamSeasonStandingsPage({ searchParams }: PageProp
             <strong>{standings.reduce((total, row) => total + row.gamesPlayed, 0)}</strong>
           </article>
           <article className="metric">
-            <span>Point differential</span>
-            <strong>PF − PA</strong>
+            <span>Events</span>
+            <strong>{eventBreakdown.length}</strong>
           </article>
         </div>
 
         {gamesMissingResults > 0 ? (
           <p className="data-warning" role="status">
             {gamesMissingResults} game{gamesMissingResults === 1 ? "" : "s"} do not yet have
-            exactly two team-result records and are excluded from a complete team record.
+            exactly two team-result records and are excluded from complete team records.
           </p>
         ) : (
           <p className="data-complete" role="status">
@@ -143,6 +144,14 @@ export default async function TeamSeasonStandingsPage({ searchParams }: PageProp
         </div>
 
         <StandingsTable standings={standings} seasonUuid={season.uuid} />
+
+        <div className="standings-section-heading event-section-heading">
+          <div>
+            <h2>Results by event</h2>
+            <p>Expand an event to see each participating team’s record and scoring totals at that event.</p>
+          </div>
+        </div>
+        <EventBreakdown events={eventBreakdown} />
       </section>
 
       <footer className="footer">
