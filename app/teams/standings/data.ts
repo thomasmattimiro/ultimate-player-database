@@ -17,6 +17,18 @@ export type TeamSeasonStanding = {
   eventsPlayed: number;
 };
 
+export type EventTeamStanding = Omit<TeamSeasonStanding, "eventsPlayed">;
+
+export type EventResultsBreakdown = {
+  eventUuid: string;
+  eventName: string;
+  startDate: string | null;
+  endDate: string | null;
+  gamesPlayed: number;
+  gamesMissingResults: number;
+  teams: EventTeamStanding[];
+};
+
 export type TeamSeasonResults = {
   season: {
     uuid: string;
@@ -26,6 +38,7 @@ export type TeamSeasonResults = {
     endDate: string | null;
   };
   standings: TeamSeasonStanding[];
+  eventBreakdown: EventResultsBreakdown[];
   gamesPlayed: number;
   gamesMissingResults: number;
 };
@@ -36,6 +49,71 @@ type ResultRow = {
   score: number | null;
   outcome: string | null;
 };
+
+type Aggregate = {
+  games: Set<string>;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointsFor: number;
+  pointsAgainst: number;
+};
+
+function createAggregate(): Aggregate {
+  return {
+    games: new Set<string>(),
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+  };
+}
+
+function toStanding(
+  teamUuid: string,
+  aggregate: Aggregate,
+  team: {
+    name: string | null;
+    division: string | null;
+    competition_gender: string | null;
+    verification_status: string;
+  },
+): EventTeamStanding {
+  const gamesPlayed = aggregate.games.size;
+  const decisions = aggregate.wins + aggregate.losses + aggregate.ties;
+  const pointDifferential = aggregate.pointsFor - aggregate.pointsAgainst;
+
+  return {
+    teamUuid,
+    teamName: team.name ?? "Unnamed team",
+    division: team.division,
+    competitionGender: team.competition_gender,
+    verificationStatus: team.verification_status,
+    gamesPlayed,
+    wins: aggregate.wins,
+    losses: aggregate.losses,
+    ties: aggregate.ties,
+    winPercentage:
+      decisions > 0 ? (aggregate.wins + aggregate.ties * 0.5) / decisions : 0,
+    pointsFor: aggregate.pointsFor,
+    pointsAgainst: aggregate.pointsAgainst,
+    pointDifferential,
+  };
+}
+
+function compareStandings(
+  a: EventTeamStanding,
+  b: EventTeamStanding,
+) {
+  return (
+    b.winPercentage - a.winPercentage ||
+    b.wins - a.wins ||
+    b.pointDifferential - a.pointDifferential ||
+    b.pointsFor - a.pointsFor ||
+    a.teamName.localeCompare(b.teamName)
+  );
+}
 
 export async function getAvailableSeasons() {
   const supabase = await createClient();
@@ -72,42 +150,63 @@ export async function getTeamSeasonResults(
     throw new Error(`Unable to load season divisions: ${divisionsError.message}`);
   }
 
-  const divisionIds = (eventDivisions ?? []).map((division) => division.id);
+  const divisionRows = eventDivisions ?? [];
+  const divisionIds = divisionRows.map((division) => division.id);
+  const eventUuids = [...new Set(divisionRows.map((division) => division.event_id))];
+  const emptySeason = {
+    uuid: season.uuid,
+    year: season.year,
+    division: season.division,
+    startDate: season.start_date,
+    endDate: season.end_date,
+  };
+
   if (divisionIds.length === 0) {
     return {
-      season: {
-        uuid: season.uuid,
-        year: season.year,
-        division: season.division,
-        startDate: season.start_date,
-        endDate: season.end_date,
-      },
+      season: emptySeason,
       standings: [],
+      eventBreakdown: [],
       gamesPlayed: 0,
       gamesMissingResults: 0,
     };
   }
 
-  const { data: games, error: gamesError } = await supabase
-    .from("games")
-    .select("uuid, event, date")
-    .in("event_division_id", divisionIds)
-    .order("date", { ascending: true });
+  const [{ data: games, error: gamesError }, { data: events, error: eventsError }] =
+    await Promise.all([
+      supabase
+        .from("games")
+        .select("uuid, event, date")
+        .in("event_division_id", divisionIds)
+        .order("date", { ascending: true }),
+      supabase
+        .from("events")
+        .select("id, event_name, start_date, end_date")
+        .in("id", eventUuids),
+    ]);
 
   if (gamesError) throw new Error(`Unable to load games: ${gamesError.message}`);
+  if (eventsError) throw new Error(`Unable to load events: ${eventsError.message}`);
 
   const gameRows = games ?? [];
+  const eventRows = events ?? [];
+  const eventByUuid = new Map(eventRows.map((event) => [event.id, event]));
   const gameUuids = gameRows.map((game) => game.uuid);
+
   if (gameUuids.length === 0) {
     return {
-      season: {
-        uuid: season.uuid,
-        year: season.year,
-        division: season.division,
-        startDate: season.start_date,
-        endDate: season.end_date,
-      },
+      season: emptySeason,
       standings: [],
+      eventBreakdown: eventRows
+        .map((event) => ({
+          eventUuid: event.id,
+          eventName: event.event_name ?? "Unnamed event",
+          startDate: event.start_date,
+          endDate: event.end_date,
+          gamesPlayed: 0,
+          gamesMissingResults: 0,
+          teams: [],
+        }))
+        .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? "")),
       gamesPlayed: 0,
       gamesMissingResults: 0,
     };
@@ -154,98 +253,97 @@ export async function getTeamSeasonResults(
 
   const teamByUuid = new Map((teams ?? []).map((team) => [team.uuid, team]));
   const gameByUuid = new Map(gameRows.map((game) => [game.uuid, game]));
+  const seasonAggregates = new Map<string, Aggregate>();
+  const eventAggregates = new Map<string, Map<string, Aggregate>>();
+  const eventGameIds = new Map<string, Set<string>>();
+  const eventMissingGames = new Map<string, number>();
 
-  const aggregates = new Map<
-    string,
-    {
-      games: Set<string>;
-      events: Set<string>;
-      wins: number;
-      losses: number;
-      ties: number;
-      pointsFor: number;
-      pointsAgainst: number;
+  for (const game of gameRows) {
+    if (!game.event) continue;
+    const eventGames = eventGameIds.get(game.event) ?? new Set<string>();
+    eventGames.add(game.uuid);
+    eventGameIds.set(game.event, eventGames);
+    if (!completeGameUuids.has(game.uuid)) {
+      eventMissingGames.set(game.event, (eventMissingGames.get(game.event) ?? 0) + 1);
     }
-  >();
-
-  for (const result of completeResultRows) {
-    const team = teamByUuid.get(result.team_uuid);
-    if (!team) continue;
-
-    const aggregate = aggregates.get(result.team_uuid) ?? {
-      games: new Set<string>(),
-      events: new Set<string>(),
-      wins: 0,
-      losses: 0,
-      ties: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-    };
-
-    aggregate.games.add(result.game_uuid);
-    if (result.outcome === "win") aggregate.wins += 1;
-    if (result.outcome === "loss") aggregate.losses += 1;
-    if (result.outcome === "tie") aggregate.ties += 1;
-    if (result.score !== null) aggregate.pointsFor += result.score;
-
-    const game = gameByUuid.get(result.game_uuid);
-    if (game?.event) aggregate.events.add(game.event);
-
-    const opponent = (resultsByGame.get(result.game_uuid) ?? []).find(
-      (candidate) => candidate.team_uuid !== result.team_uuid,
-    );
-    if (opponent?.score !== null && opponent?.score !== undefined) {
-      aggregate.pointsAgainst += opponent.score;
-    }
-
-    aggregates.set(result.team_uuid, aggregate);
   }
 
-  const standings = [...aggregates.entries()]
+  for (const result of completeResultRows) {
+    if (!teamByUuid.has(result.team_uuid)) continue;
+
+    const seasonAggregate = seasonAggregates.get(result.team_uuid) ?? createAggregate();
+    const eventUuid = gameByUuid.get(result.game_uuid)?.event;
+    if (!eventUuid) continue;
+
+    const byTeam = eventAggregates.get(eventUuid) ?? new Map<string, Aggregate>();
+    const eventAggregate = byTeam.get(result.team_uuid) ?? createAggregate();
+
+    for (const aggregate of [seasonAggregate, eventAggregate]) {
+      aggregate.games.add(result.game_uuid);
+      if (result.outcome === "win") aggregate.wins += 1;
+      if (result.outcome === "loss") aggregate.losses += 1;
+      if (result.outcome === "tie") aggregate.ties += 1;
+      if (result.score !== null) aggregate.pointsFor += result.score;
+
+      const opponent = (resultsByGame.get(result.game_uuid) ?? []).find(
+        (candidate) => candidate.team_uuid !== result.team_uuid,
+      );
+      if (opponent?.score !== null && opponent?.score !== undefined) {
+        aggregate.pointsAgainst += opponent.score;
+      }
+    }
+
+    seasonAggregates.set(result.team_uuid, seasonAggregate);
+    byTeam.set(result.team_uuid, eventAggregate);
+    eventAggregates.set(eventUuid, byTeam);
+  }
+
+  const teamRows = [...teamByUuid.entries()];
+  const standings = [...seasonAggregates.entries()]
     .flatMap(([teamUuid, aggregate]) => {
       const team = teamByUuid.get(teamUuid);
-      if (!team) return [];
+      return team ? [{
+        ...toStanding(teamUuid, aggregate, team),
+        eventsPlayed: new Set(
+          completeResultRows
+            .filter((result) => result.team_uuid === teamUuid)
+            .map((result) => gameByUuid.get(result.game_uuid)?.event)
+            .filter(Boolean),
+        ).size,
+      }] : [];
+    })
+    .sort(compareStandings);
 
-      const gamesPlayed = aggregate.games.size;
-      const decisions = aggregate.wins + aggregate.losses + aggregate.ties;
-      const pointDifferential = aggregate.pointsFor - aggregate.pointsAgainst;
+  const eventBreakdown = eventRows
+    .map((event) => {
+      const teamAggregates = eventAggregates.get(event.id) ?? new Map();
+      const eventTeams = [...teamAggregates.entries()]
+        .flatMap(([teamUuid, aggregate]) => {
+          const team = teamByUuid.get(teamUuid);
+          return team ? [toStanding(teamUuid, aggregate, team)] : [];
+        })
+        .sort(compareStandings);
 
-      return [{
-        teamUuid,
-        teamName: team.name ?? "Unnamed team",
-        division: team.division,
-        competitionGender: team.competition_gender,
-        verificationStatus: team.verification_status,
-        gamesPlayed,
-        wins: aggregate.wins,
-        losses: aggregate.losses,
-        ties: aggregate.ties,
-        winPercentage: decisions > 0 ? (aggregate.wins + aggregate.ties * 0.5) / decisions : 0,
-        pointsFor: aggregate.pointsFor,
-        pointsAgainst: aggregate.pointsAgainst,
-        pointDifferential,
-        eventsPlayed: aggregate.events.size,
-      }];
+      return {
+        eventUuid: event.id,
+        eventName: event.event_name ?? "Unnamed event",
+        startDate: event.start_date,
+        endDate: event.end_date,
+        gamesPlayed: eventGameIds.get(event.id)?.size ?? 0,
+        gamesMissingResults: eventMissingGames.get(event.id) ?? 0,
+        teams: eventTeams,
+      };
     })
     .sort((a, b) =>
-      b.winPercentage - a.winPercentage ||
-      b.wins - a.wins ||
-      b.pointDifferential - a.pointDifferential ||
-      b.pointsFor - a.pointsFor ||
-      a.teamName.localeCompare(b.teamName),
+      (a.startDate ?? "").localeCompare(b.startDate ?? "") ||
+      a.eventName.localeCompare(b.eventName),
     );
 
   return {
-    season: {
-      uuid: season.uuid,
-      year: season.year,
-      division: season.division,
-      startDate: season.start_date,
-      endDate: season.end_date,
-    },
+    season: emptySeason,
     standings,
+    eventBreakdown,
     gamesPlayed: gameRows.length,
     gamesMissingResults,
   };
 }
-
