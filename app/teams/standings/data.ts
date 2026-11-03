@@ -124,26 +124,16 @@ export async function getTeamSeasonResults(
 
   const resultRows = (results ?? []) as ResultRow[];
   const teamUuids = [...new Set(resultRows.map((result) => result.team_uuid))];
-  const eventUuids = [...new Set(gameRows.flatMap((game) => game.event ? [game.event] : []))];
-
-  const [{ data: teams, error: teamsError }, { data: events, error: eventsError }] =
-    await Promise.all([
-      teamUuids.length
-        ? supabase
-            .from("teams")
-            .select("uuid, name, division, competition_gender, verification_status")
-            .in("uuid", teamUuids)
-        : Promise.resolve({ data: [], error: null }),
-      eventUuids.length
-        ? supabase.from("events").select("id, event_name").in("id", eventUuids)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+  const { data: teams, error: teamsError } = teamUuids.length
+    ? await supabase
+        .from("teams")
+        .select("uuid, name, division, competition_gender, verification_status")
+        .in("uuid", teamUuids)
+    : { data: [], error: null };
 
   if (teamsError) throw new Error(`Unable to load teams: ${teamsError.message}`);
-  if (eventsError) throw new Error(`Unable to load events: ${eventsError.message}`);
 
   const teamByUuid = new Map((teams ?? []).map((team) => [team.uuid, team]));
-  const eventNameById = new Map((events ?? []).map((event) => [event.id, event.event_name]));
   const gameByUuid = new Map(gameRows.map((game) => [game.uuid, game]));
   const resultsByGame = new Map<string, ResultRow[]>();
 
@@ -251,9 +241,3 @@ export async function getTeamSeasonResults(
   };
 }
 
-export function getEventNameMap(
-  eventIds: string[],
-  names: Map<string, string | null>,
-) {
-  return eventIds.map((id) => names.get(id) ?? "Unknown event");
-}
