@@ -1,0 +1,1 @@
+-- The validate_game_import_batch definition in the preceding migration uses count(*) followed by a separate SELECT for exact team-name matching, avoiding min(uuid) and preserving ambiguous matches for review. Retained to match the applied remote migration version.
