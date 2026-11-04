@@ -1,0 +1,1 @@
+-- The stage_import_batch definition in the preceding migration already pins search_path to public, extensions, pg_temp before calling extensions.digest. Retained to match the applied remote migration version.
